@@ -18,20 +18,18 @@
 #include <sys/timerfd.h>
 #include "server.h"
 
-#define BUFFER 8192 //buffer for receiving whatever
-#define PORT "4111" //port users will connect to
-#define BACKLOG 128 //max queue
-#define MAX_EVENTS 64 //max events to handle in multiplexing
+#define BUFFER 8192
+#define PORT "4111"
+#define BACKLOG 128
+#define MAX_EVENTS 64
 #define MAX_CLIENTS 1024
 #define TIMEOUT_SEC 1
 
-//struct to hold how long a socket has been open
 struct client_state {
     int active;
     time_t last_activity;
 };
 
-//get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
@@ -39,12 +37,9 @@ void *get_in_addr(struct sockaddr *sa) {
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-//helper function to determine if the header information passed in has the header kept alive keyvalue
 int is_keep_alive(struct client_request *req) {
     struct key_value *current = req->headers;
     while(current != NULL) {
-        //HTTP/1.1 defaults to keep-alive, but client can send "Connection: close"
-        //HTTP/1.0 requires "Connection: keep-alive"
         if (strcasecmp(current->key, "Connection") == 0) {
             if (strcasecmp(current->value, "keep-alive") == 0) {
                 return 1; //keep alive
@@ -63,8 +58,6 @@ int is_keep_alive(struct client_request *req) {
     return 0;
 }
 
-
-//helper function to free header values after no longer in use
 void free_client_request(struct client_request *req) {
     if (!req) return;
     struct key_value *current = req->headers;
@@ -79,38 +72,31 @@ void free_client_request(struct client_request *req) {
 int parse_request(char *request, int length, struct client_request *client_http) {
     client_http->headers = NULL;
 
-    //gets the request type "GET", "POST", whatever
     client_http->method = request;
     int i = 0;
     for (; request[i] != ' '; i++) ; //just iterates
     if (i == length) { free(client_http); return -1; } //error
     request[i++] = '\0';
 
-    //gets the url being requests
     client_http->path = &request[i];
     for(; request[i] != ' '; i++) ;
     if (i == length) { free(client_http); return -1; }
     request[i++] = '\0';
 
-    //gets the http version
     client_http->version = &request[i];
     for(; request[i] != '\r'; i++) ;
     if (i == length) { free(client_http); return -1; }
     request[i++] = '\0';
 
-    //moves cursor to next line
     if (i < length && request[i-1] == '\0' && request[i] == '\n') {
         i++;
     }
 
-    // verify that everything was stored
     printf("%s\n%s\n%s\n", client_http->method, client_http->path, client_http->version);
 
-    //header parsing
     struct key_value *head = NULL;
     struct key_value *tail = NULL;
 
-    //loop until \r\n\r\n
     while (i < length && request[i] != '\r') {
         struct key_value *pair = (struct key_value *) malloc(sizeof(struct key_value));
         if (!pair) {
@@ -119,24 +105,20 @@ int parse_request(char *request, int length, struct client_request *client_http)
         }
         pair->next = NULL;
 
-        //key
         pair->key = &request[i];
         for (; request[i] != ':'; i++) ;
         if (i == length) { free(pair); free(client_http); return -1; } //error
         request[i++] = '\0';
 
-        //skip space
         for (; request[i] == ' ' || request[i] == '\t'; i++) ;
         if (i == length) { free(pair); free(client_http); return -1; }
 
-        //value
         pair->value = &request[i];
         for (; request[i] != '\r'; i++) ;
         if (i == length) { free(pair); free(client_http); return -1; }
         request[i++] = '\0';
-        i++; //move to next line
+        i++;
 
-        //add to list
         if (head == NULL) {
             head = pair;
             tail = pair;
@@ -148,19 +130,18 @@ int parse_request(char *request, int length, struct client_request *client_http)
 
     client_http->headers = head;
 
-    //print headers
+    //debug prints
     printf("Headers:\n");
     struct key_value *current = client_http->headers;
     while(current != NULL) {
         printf("  '%s': '%s'\n", current->key, current->value);
         current = current->next;
     }
-    printf("\n"); //newline character for formatting
+    printf("\n");
 
     return 1;
 }
 
-//function deals with serving the 
 int do_something(struct client_request *client_header, int socket) {
     if (strcmp(client_header->method, "GET") == 0) {
         handle_get_request(socket, client_header);
@@ -191,63 +172,52 @@ int main() {
     int yes = 1;
     int rv;
 
-    //setup my own address information
+    //own address
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC; //use either IPv4 or IPv6
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE; //find my ip for me
+    hints.ai_flags = AI_PASSIVE;
 
-    //getaddrinfo call and error checking
     if((rv = getaddrinfo(NULL, PORT, &hints, &res)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
     }
 
-    //loop through the linked list returned my getaddrinfo and bind to the first one
     for (p = res; p != NULL; p = p->ai_next) {
-        //calls socket to create a socket with the current information, if failure occurs, moves to the next linked list item
         if ((listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
             perror("socket creation error");
             continue;
         }
 
-        //fix the annoying issue of "port in us" or whatever, i.e. this allows you to reuse the port on reruns of the program
         if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
             perror("setsockopt error");
         }
 
-        //bind socket to my address and port specified
         if (bind(listener, p->ai_addr, p->ai_addrlen) == -1) {
             close(listener);
             perror("binding error");
             continue;
         }
 
-        //if none of the if statements trigger it means everything was successful, no need to iterate through the rest
         break;
     }
 
-    //free the linked list
     freeaddrinfo(res); 
 
-    //if none of the linked list options worked close the program
     if (p == NULL) {
         fprintf(stderr, "failed to bind\n");
         exit(1);
     }
 
-    //starts listening, if listen function returns -1 (failure) exits
     if (listen(listener, BACKLOG) == -1) {
         perror("listen");
         exit(1);
     }
 
-    //nonblocking listener
     if (fcntl(listener, F_SETFL, O_NONBLOCK) == -1) {
         perror("fcntl listener");
         exit(1);
     }
 
-    //epoll
     int epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) {
         perror("epoll_create1");
@@ -255,11 +225,9 @@ int main() {
     }
 
     struct epoll_event event, events[MAX_EVENTS];
-    //watches for events
     event.events = EPOLLIN;
     event.data.fd = listener;
 
-    //connect listener with epoll
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listener, &event) == -1) {
         perror("epoll_ctl listener");
         exit(1);
@@ -278,7 +246,6 @@ int main() {
     event.data.fd = timer_fd;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_fd, &event);
 
-    //the event stuff
     struct client_state clients[MAX_CLIENTS] = {0}; 
     char request_buffer[BUFFER];
 
@@ -290,7 +257,6 @@ int main() {
 
         for (int i = 0; i < num_events; i++) {
             if (events[i].data.fd == listener) {
-                //new connections
                 while (1) {
                     int new_fd = accept(listener, NULL, NULL);
                     if (new_fd == -1) break;
@@ -300,7 +266,6 @@ int main() {
                     event.data.fd = new_fd;
                     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_fd, &event);
                     
-                    //initialize new state for new client
                     if (new_fd < MAX_CLIENTS) {
                         clients[new_fd].active = 1;
                         clients[new_fd].last_activity = time(NULL);
@@ -310,7 +275,6 @@ int main() {
                     }
                 }
             } else if (events[i].data.fd == timer_fd) {
-                //timeout event
                 uint64_t expirations;
                 if (read(timer_fd, &expirations, sizeof(uint64_t)) == -1) {
                     perror("read timer_fd");
@@ -326,12 +290,10 @@ int main() {
                     }
                 }
             } else {
-                //client data
                 int client_fd = events[i].data.fd;
                 int bytes_received = recv(client_fd, request_buffer, BUFFER - 1, 0);
 
                 if (bytes_received <= 0) {
-                    //client disconnected or error
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
                     close(client_fd);
                     clients[client_fd].active = 0;
@@ -343,11 +305,9 @@ int main() {
                         do_something(client_http, client_fd);
 
                         if (is_keep_alive(client_http)) {
-                            //update activity time and wait for more requests
                             clients[client_fd].last_activity = time(NULL);
                             printf("server: keep-alive request processed on fd %d\n", client_fd);
                         } else {
-                            //close the connection as requested
                             printf("server: closing connection on fd %d as requested\n", client_fd);
                             epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
                             close(client_fd);

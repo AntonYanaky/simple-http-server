@@ -5,81 +5,58 @@
 #include <string.h>
 #include "server.h"
 
-//helper function to replace instances of a sequence of characters with another
 char *str_replace(const char *orig, const char *rep, const char *with) {
-    //the string that will be returned
     char *result;
-    //pointer
     const char *ins;
-    //temp var used to build the result
     char *tmp;
-    //length of the string to be replaced
     int len_rep; 
-    //length of the replacement string
     int len_with;
-    //the length of the segment before the next replacement
     int len_front;
-    //total number of replacemenets to be made
     int count;
 
-    //if the original string or string to be replaced are missing cant perform function
     if (!orig || !rep)
         return NULL;
 
     len_rep = strlen(rep);
-    //if the string to be replaced is empty itll cause a loop
     if (len_rep == 0)
         return NULL; 
 
-    //if replacement string is missing, treat is as an empty string
     if (!with)
         with = "";
     len_with = strlen(with);
 
-    //count all occurances of rep
     ins = orig;
     for (count = 0; (tmp = strstr(ins, rep)); ++count) {
         ins = tmp + len_rep;
     }
 
-    //allocate memory for the new string
     tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
     if (!result)
         return NULL;
 
-    //build the string
     while (count--) {
-        //find the next occurrence of rep
         ins = strstr(orig, rep);
-        //calculate the length of the part of the string before this
         len_front = ins - orig;
         
-        //copy that front part into our result string
         tmp = strncpy(tmp, orig, len_front) + len_front;
         
-        //copy the replacement string into our result string
         tmp = strcpy(tmp, with) + len_with;
         
-        //move the original string pointer past the front part
         orig += len_front + len_rep; 
     }
-    //after the loop, copy the rest of the original string
     strcpy(tmp, orig);
     
     return result;
 }
 
 char* generate_page(char *content) {
-    //open base file assuming running from project root
     FILE *f = fopen("src/index.html", "rb");
     if (!f) {
         perror("Cannot open index.html");
         return NULL;
     }
-    //moves cursor to end of file to read the size of file
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
-    //moves back to the front and reads the file
     fseek(f, 0, SEEK_SET);
     char *template_string = malloc(fsize + 1);
     if (!template_string) {
@@ -125,7 +102,6 @@ char* generate_page(char *content) {
 int handle_get_request(int client_fd, struct client_request *req) {
     char* content = NULL;
 
-    //simple router
     if (strcmp(req->path, "/") == 0) {
         content = generate_page("<h1 class=\"text-2xl\">Home Page</h1><p>lorem ipsum</p>");
     } else if (strcmp(req->path, "/about") == 0) {
@@ -140,7 +116,6 @@ int handle_get_request(int client_fd, struct client_request *req) {
     
     if (content != NULL) {
         send(client_fd, content, strlen(content), 0);
-        //call free after done with content
         free(content);
     } else {
         //send 500 Internal Server Error

@@ -16,8 +16,6 @@ typedef struct attribute {
 typedef struct node {
     char* tag;
     char* content;
-    char* classes; //best way to implement classes? idk also no options for links for buttons and logic there
-
     attribute *attributes;
     int attributeCount;
     //<tag class="classes flex flex 1" href="whatever">content</tag>
@@ -26,7 +24,7 @@ typedef struct node {
     struct node** children;
 } node;
 
-struct node *createNode(char *tag, char* content, attribute *attributes, int attributeCount);
+struct node *createNode(const char *tag, const char* content, attribute *attributes, int attributeCount);
 
 int createChild(struct node *parent, struct node *child);
 
@@ -38,7 +36,7 @@ int calculateSize(struct node *parent);
 
 void renderNodesHelper(struct node *parent, char **cursor);
 
-struct node *createNode(char *tag, char*content, attribute *attributes, int attributeCount) {
+struct node *createNode(const char *tag, const char* content, attribute *attributes, int attributeCount) {
     struct node *newNode; 
     if (!(newNode = calloc(1, sizeof(node)))) return NULL;
 
@@ -174,7 +172,6 @@ char *renderNodes(struct node *parent) {
     renderNodesHelper(parent, &cursor);
 
     *(cursor) = '\0';
-
     return buffer;
 }
 

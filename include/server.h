@@ -1,4 +1,3 @@
-//header file for shared functions and other stuff
 #ifndef SERVER_H_
 #define SERVER_H_
 
@@ -9,12 +8,11 @@ struct key_value {
     struct key_value *next;
 };
 
-//struct to hold parsed information
 struct client_request {
-    char *method; //"GET" or others
-    char *path; //url path like "/index.html"
-    char *version; //http version
-    struct key_value *headers; //list to all the other information
+    char *method;
+    char *path;
+    char *version;
+    struct key_value *headers;
 };
 
 int handle_get_request(int client_fd, struct client_request *req);

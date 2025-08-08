@@ -74,8 +74,8 @@ int parse_request(char *request, int length, struct client_request *client_http)
 
     client_http->method = request;
     int i = 0;
-    for (; request[i] != ' '; i++) ; //just iterates
-    if (i == length) { free(client_http); return -1; } //error
+    for (; request[i] != ' '; i++) ;
+    if (i == length) { free(client_http); return -1; }
     request[i++] = '\0';
 
     client_http->path = &request[i];
@@ -130,7 +130,6 @@ int parse_request(char *request, int length, struct client_request *client_http)
 
     client_http->headers = head;
 
-    //debug prints
     printf("Headers:\n");
     struct key_value *current = client_http->headers;
     while(current != NULL) {
@@ -172,7 +171,6 @@ int main() {
     int yes = 1;
     int rv;
 
-    //own address
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -233,7 +231,6 @@ int main() {
         exit(1);
     }
 
-    //timer
     int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     struct itimerspec new_timer_value;
     new_timer_value.it_value.tv_sec = 1;

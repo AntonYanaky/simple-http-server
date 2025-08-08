@@ -3,7 +3,10 @@
 A lightweight, dependency-free C library for programmatically building and rendering HTML documents. This framework provides a simple tree-based node structure, allowing you to create complex HTML layouts dynamically on the server before sending them to a client.
 
 It's designed for performance and control, making it ideal for building fast static site generators, custom web server backends, or any application where HTML needs to be generated from C code.
-Features
+
+Compile using make to view a sample static webpage generated using the framework.
+
+## Features
 
 - Node-Based Structure: Represent the entire HTML document as a tree of node objects.
 
